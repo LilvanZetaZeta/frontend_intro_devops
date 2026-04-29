@@ -1,0 +1,54 @@
+name: CI - Frontend Build and Push
+
+on:
+  push:
+    branches: [ "deploy" ]
+  workflow_dispatch:
+
+env:
+  IMAGE_NAME: 'tareas-frontend'  # <--- Cambio clave
+  IMAGE_VERSION: "v1.0.0"
+
+jobs:
+  push_to_dockerhub:
+    name: Push Frontend to Docker Hub
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Login Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Build y push Hub
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_VERSION }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+
+  push_to_ecr:
+    name: Push Frontend to Amazon ECR
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token:     ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region:            us-east-1
+      - id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+      - uses: docker/setup-buildx-action@v3
+      - name: Build y push ECR
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ id.ecr-login.outputs.registry }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_VERSION }}
+            ${{ id.ecr-login.outputs.registry }}/${{ env.IMAGE_NAME }}:latest
